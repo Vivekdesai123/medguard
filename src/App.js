@@ -61,11 +61,23 @@ const enablePushNotifications = async () => {
     if (!('Notification' in window)) return null;
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return null;
-    const fb = await initFirebase();
-    if (!fb) return null;
-    const token = await fb.getToken(fb.messaging, { vapidKey: VAPID_KEY });
+
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js');
+    const { getMessaging, getToken } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js');
+
+    const apps = getApps();
+    const app = apps.length === 0 ? initializeApp(FIREBASE_CONFIG) : apps[0];
+    const messaging = getMessaging(app);
+
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+
     if (token) {
       localStorage.setItem('fcm_token', token);
+
+      // Show token so you can copy it
+      console.log('YOUR FCM TOKEN:', token);
+      alert('FCM Token copied to console. Check browser console (F12) and copy the token.');
+
       return token;
     }
   } catch(e) {
