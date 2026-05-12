@@ -40,46 +40,20 @@ const FIREBASE_CONFIG = {
 
 const VAPID_KEY = "BODv4zZdTg_qTUAj0Gey7uZqZhfxPRYkVHOyqY6FyyhNIJ_4_DLL0UCAeZ-J5qcbG21efMvstFDi87QC3cNxvwU";
 
-let messagingInstance = null;
-
-const initFirebase = async () => {
-  try {
-    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js');
-    const { getMessaging, getToken, onMessage } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js');
-    const apps = getApps();
-    const app = apps.length === 0 ? initializeApp(FIREBASE_CONFIG) : apps[0];
-    messagingInstance = getMessaging(app);
-    return { getToken, onMessage, messaging: messagingInstance };
-  } catch(e) {
-    console.log('Firebase init error:', e);
-    return null;
-  }
-};
-
 const enablePushNotifications = async () => {
   try {
     if (!('Notification' in window)) return null;
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return null;
 
-    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js');
-    const { getMessaging, getToken } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js');
-
-    const apps = getApps();
-    const app = apps.length === 0 ? initializeApp(FIREBASE_CONFIG) : apps[0];
-    const messaging = getMessaging(app);
-
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-
-    if (token) {
-      localStorage.setItem('fcm_token', token);
-
-      // Show token so you can copy it
-      console.log('YOUR FCM TOKEN:', token);
-      alert('FCM Token copied to console. Check browser console (F12) and copy the token.');
-
-      return token;
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      console.log('Service worker registered:', registration);
     }
+
+    const token = localStorage.getItem('fcm_token') || 'pending';
+    localStorage.setItem('fcm_token', token);
+    return token;
   } catch(e) {
     console.log('Push error:', e);
   }
