@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 const T = {
   bg:"#0D1117",sur:"#161B22",hi:"#1C2330",
@@ -12,10 +12,18 @@ const T = {
 };
 
 const INIT_MEDS = [
-  {id:1,name:"Metformin",dose:"500mg",tpd:2,times:["08:00","20:00"],stock:48,total:60,cat:"Diabetes",color:T.acc,bills:[]},
-  {id:2,name:"Amlodipine",dose:"5mg",tpd:1,times:["09:00"],stock:12,total:30,cat:"BP",color:T.warn,bills:[]},
-  {id:3,name:"Atorvastatin",dose:"10mg",tpd:1,times:["21:00"],stock:25,total:30,cat:"Cholesterol",color:T.vio,bills:[]},
-  {id:4,name:"Vitamin D3",dose:"1000IU",tpd:1,times:["10:00"],stock:5,total:30,cat:"Supplement",color:T.blu,bills:[]},
+  {id:1,name:"Metformin",dose:"500mg",tpd:2,times:["08:00","20:00"],
+   prescribed:60,purchased:48,stock:48,cat:"Diabetes",color:T.acc,
+   bills:[],prescriptions:[],instructions:""},
+  {id:2,name:"Amlodipine",dose:"5mg",tpd:1,times:["09:00"],
+   prescribed:30,purchased:12,stock:12,cat:"BP",color:T.warn,
+   bills:[],prescriptions:[],instructions:""},
+  {id:3,name:"Atorvastatin",dose:"10mg",tpd:1,times:["21:00"],
+   prescribed:30,purchased:25,stock:25,cat:"Cholesterol",color:T.vio,
+   bills:[],prescriptions:[],instructions:""},
+  {id:4,name:"Vitamin D3",dose:"1000IU",tpd:1,times:["10:00"],
+   prescribed:30,purchased:5,stock:5,cat:"Supplement",color:T.blu,
+   bills:[],prescriptions:[],instructions:""},
 ];
 
 const INIT_LOGS = [
@@ -27,67 +35,13 @@ const INIT_LOGS = [
 const COLORS=[T.acc,T.warn,T.vio,T.blu,T.safe,T.dan];
 const CATS=["Diabetes","Blood Pressure","Cholesterol","Supplement","Thyroid","Gastric","Painkiller","Antibiotic","Other"];
 const daysLeft=m=>Math.floor(m.stock/m.tpd);
-
-// ── FIREBASE NOTIFICATION HELPERS ─────────────────────────────────────────────
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDF_9Ry7HVTFUdwLOt3rOAHTIKgXI0wJ_w",
-  authDomain: "medguard-b6257.firebaseapp.com",
-  projectId: "medguard-b6257",
-  storageBucket: "medguard-b6257.firebasestorage.app",
-  messagingSenderId: "243200818579",
-  appId: "1:243200818579:web:2d1328d4e3b99263a3fc66"
+const inventoryStatus=m=>{
+  const diff=m.purchased-m.prescribed;
+  if(diff===0) return {status:"exact",color:T.acc,msg:"Exactly as prescribed"};
+  if(diff>0) return {status:"excess",color:T.safe,msg:`${diff} extra tablets purchased`};
+  return {status:"short",color:T.dan,msg:`${Math.abs(diff)} tablets short — buy more`};
 };
 
-const VAPID_KEY = "BODv4zZdTg_qTUAj0Gey7uZqZhfxPRYkVHOyqY6FyyhNIJ_4_DLL0UCAeZ-J5qcbG21efMvstFDi87QC3cNxvwU";
-
-const enablePushNotifications = async () => {
-  try {
-    if (!('Notification' in window)) return null;
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return null;
-
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('Service worker registered:', registration);
-    }
-
-    const token = localStorage.getItem('fcm_token') || 'pending';
-    localStorage.setItem('fcm_token', token);
-    return token;
-  } catch(e) {
-    console.log('Push error:', e);
-  }
-  return null;
-};
-
-// ── LOCAL NOTIFICATION SCHEDULER ──────────────────────────────────────────────
-const scheduleLocalReminders = (meds) => {
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-  const now = new Date();
-  meds.forEach(med => {
-    med.times.forEach(timeStr => {
-      const [hours, mins] = timeStr.split(':').map(Number);
-      const reminderTime = new Date();
-      reminderTime.setHours(hours, mins, 0, 0);
-      if (reminderTime <= now) reminderTime.setDate(reminderTime.getDate() + 1);
-      const delay = reminderTime - now;
-      if (delay < 24 * 60 * 60 * 1000) {
-        setTimeout(() => {
-          new Notification(`💊 Medicine Reminder`, {
-            body: `Time to take ${med.name} ${med.dose}`,
-            icon: '/logo192.png',
-            badge: '/logo192.png',
-            tag: `med-${med.id}-${timeStr}`,
-            requireInteraction: true,
-          });
-        }, delay);
-      }
-    });
-  });
-};
-
-// ── PRIMITIVES ─────────────────────────────────────────────────────────────────
 function Chip({children,color}){
   return <span style={{padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,background:color+"22",color,border:`1px solid ${color}44`}}>{children}</span>;
 }
@@ -111,68 +65,7 @@ function Btn({children,onClick,color=T.acc,outline,disabled,style={}}){
   );
 }
 
-// ── NOTIFICATION BANNER ────────────────────────────────────────────────────────
-function NotifBanner({meds}){
-  const [status,setStatus]=useState(()=>localStorage.getItem('fcm_token')?'enabled':'idle');
-  const [inApp,setInApp]=useState(null);
-
-  const enable=async()=>{
-    setStatus('loading');
-    const token=await enablePushNotifications();
-    if(token){
-      setStatus('enabled');
-      scheduleLocalReminders(meds);
-    } else {
-      setStatus('denied');
-    }
-  };
-
-  useEffect(()=>{
-    if(status==='enabled') scheduleLocalReminders(meds);
-  },[meds,status]);
-
-  return(
-    <>
-      {inApp&&(
-        <div style={{padding:"12px 16px",background:T.accD,borderBottom:`1px solid ${T.accM}`,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:20}}>💊</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700,color:T.acc}}>{inApp.title}</div>
-            <div style={{fontSize:12,color:T.tx}}>{inApp.body}</div>
-          </div>
-          <button onClick={()=>setInApp(null)} style={{background:"none",border:"none",color:T.tm,fontSize:18,cursor:"pointer"}}>✕</button>
-        </div>
-      )}
-      {status==="idle"&&(
-        <div style={{padding:"10px 16px",background:T.warnD,borderBottom:`1px solid ${T.warn}33`,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:18}}>🔔</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:12,fontWeight:700,color:T.warn}}>Enable medicine reminders</div>
-            <div style={{fontSize:11,color:T.tm}}>Get notified when doses are due</div>
-          </div>
-          <button onClick={enable} style={{padding:"5px 12px",borderRadius:8,background:T.warn,border:"none",color:T.bg,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Enable</button>
-        </div>
-      )}
-      {status==="loading"&&(
-        <div style={{padding:"10px 16px",background:T.warnD,borderBottom:`1px solid ${T.warn}33`,fontSize:12,color:T.warn}}>
-          ⏳ Setting up notifications...
-        </div>
-      )}
-      {status==="enabled"&&(
-        <div style={{padding:"8px 16px",background:T.safeD,borderBottom:`1px solid ${T.safe}33`,fontSize:11,color:T.safe,display:"flex",alignItems:"center",gap:6}}>
-          ✅ Notifications active — reminders set for all medicines
-        </div>
-      )}
-      {status==="denied"&&(
-        <div style={{padding:"10px 16px",background:T.danD,borderBottom:`1px solid ${T.dan}33`,fontSize:12,color:T.dan}}>
-          ⚠️ Blocked. Go to browser Settings → Site settings → Notifications → Allow this site
-        </div>
-      )}
-    </>
-  );
-}
-
-// ── PRESCRIPTION SCANNER ───────────────────────────────────────────────────────
+// ── PRESCRIPTION SCANNER ──────────────────────────────────────────────────────
 function PrescriptionScanner({onMedsFound,onClose}){
   const fileRef=useRef();
   const [image,setImage]=useState(null);
@@ -201,14 +94,27 @@ function PrescriptionScanner({onMedsFound,onClose}){
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
           model:"claude-sonnet-4-20250514",
-          max_tokens:1500,
+          max_tokens:2000,
           messages:[{
             role:"user",
             content:[
               {type:"image",source:{type:"base64",media_type:image.type,data:image.base64}},
-              {type:"text",text:`You are a medical prescription reader. Extract ALL medicines from this image and return ONLY a JSON array, no other text:
-[{"name":"Medicine name","dose":"e.g. 500mg","cat":"Diabetes/Blood Pressure/Cholesterol/Supplement/Thyroid/Gastric/Painkiller/Antibiotic/Other","tpd":1,"times":["08:00"],"stock":30,"total":30,"instructions":"any special notes"}]
-Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,20:00 evening,22:00 night), stock/total default 30. Return ONLY JSON array.`}
+              {type:"text",text:`This is a DOCTOR PRESCRIPTION. Extract all medicines prescribed.
+Return ONLY a JSON array:
+[{
+  "name": "Medicine name",
+  "dose": "e.g. 500mg",
+  "cat": "Diabetes/Blood Pressure/Cholesterol/Supplement/Thyroid/Gastric/Painkiller/Antibiotic/Other",
+  "tpd": 1,
+  "times": ["08:00"],
+  "prescribed": 30,
+  "instructions": "e.g. after food"
+}]
+- prescribed = total tablets doctor has prescribed (look for quantity, days supply, #tablets)
+- tpd = times per day (1-4)
+- times = array based on tpd: morning=08:00, afternoon=14:00, evening=20:00, night=22:00
+- If quantity not mentioned, calculate: tpd x days (assume 30 days if not specified)
+Return ONLY JSON array, no other text.`}
             ]
           }]
         })
@@ -224,7 +130,7 @@ Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,
         setSelected(parsed.map((_,i)=>i));
       }
     }catch(e){
-      setError("Could not read image. Try a clearer photo of the prescription.");
+      setError("Could not read image. Try a clearer photo.");
     }
     setScanning(false);
   };
@@ -234,9 +140,12 @@ Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,
       id:Date.now()+Math.random(),
       name:m.name,dose:m.dose||"",cat:m.cat||"Other",
       tpd:m.tpd||1,times:m.times||["08:00"],
-      stock:m.stock||30,total:m.total||30,
+      prescribed:m.prescribed||30,
+      purchased:0,
+      stock:0,
       color:COLORS[Math.floor(Math.random()*COLORS.length)],
-      bills:[{id:Date.now(),url:image.url,name:image.name,note:"Added from prescription",date:new Date().toLocaleDateString("en-IN")}],
+      bills:[],
+      prescriptions:[{id:Date.now(),url:image.url,name:image.name,date:new Date().toLocaleDateString("en-IN")}],
       instructions:m.instructions||""
     }));
     onMedsFound(toAdd);
@@ -246,56 +155,52 @@ Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,
   return(
     <div style={{position:"fixed",inset:0,background:"#000b",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,maxHeight:"92vh",overflow:"auto",border:`1px solid ${T.bd}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div>
             <div style={{fontSize:18,fontWeight:800,color:T.tx}}>📋 Scan Prescription</div>
-            <div style={{fontSize:12,color:T.tm}}>AI reads and adds medicines automatically</div>
+            <div style={{fontSize:12,color:T.tm}}>AI reads prescribed quantities automatically</div>
           </div>
           <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
         </div>
+
+        <div style={{padding:12,borderRadius:12,background:T.vioD,border:`1px solid ${T.vio}33`,marginBottom:16,fontSize:12,color:T.vio}}>
+          📋 <strong>Prescription scan</strong> sets how many tablets the doctor prescribed. After this upload your purchase bill to track what you actually bought.
+        </div>
+
         {!image?(
-          <>
-            <div style={{padding:14,borderRadius:14,background:T.accD,border:`1px solid ${T.accM}`,marginBottom:16}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.acc,marginBottom:8}}>How it works</div>
-              {["Take a clear photo of doctor prescription or medicine bill","AI scans and reads all medicine names and doses","Review medicines found","Tap Add to add them all at once"].map((s,i)=>(
-                <div key={i} style={{display:"flex",gap:10,marginBottom:6}}>
-                  <div style={{width:20,height:20,borderRadius:"50%",background:T.acc,color:T.bg,fontSize:11,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</div>
-                  <div style={{fontSize:12,color:T.tx,lineHeight:1.5}}>{s}</div>
-                </div>
-              ))}
-            </div>
-            <div onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"32px 24px",borderRadius:16,border:`2px dashed ${T.bd}`,textAlign:"center",cursor:"pointer",background:T.hi}}>
-              <div style={{fontSize:48,marginBottom:12}}>📸</div>
-              <div style={{fontSize:15,fontWeight:700,color:T.tx,marginBottom:6}}>Upload Prescription or Bill</div>
-              <div style={{fontSize:12,color:T.tm}}>Take a photo or choose from gallery</div>
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}} capture="environment"/>
-            </div>
-          </>
+          <div onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"32px 24px",borderRadius:16,border:`2px dashed ${T.bd}`,textAlign:"center",cursor:"pointer",background:T.hi}}>
+            <div style={{fontSize:48,marginBottom:12}}>📋</div>
+            <div style={{fontSize:15,fontWeight:700,color:T.tx,marginBottom:6}}>Upload Doctor Prescription</div>
+            <div style={{fontSize:12,color:T.tm}}>AI reads medicines and prescribed quantities</div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}} capture="environment"/>
+          </div>
         ):(
           <div style={{marginBottom:16}}>
             <div style={{position:"relative",marginBottom:12}}>
-              <img src={image.url} alt="prescription" style={{width:"100%",borderRadius:14,maxHeight:220,objectFit:"cover",border:`1px solid ${T.bd}`}}/>
+              <img src={image.url} alt="prescription" style={{width:"100%",borderRadius:14,maxHeight:200,objectFit:"cover",border:`1px solid ${T.bd}`}}/>
               <button onClick={()=>{setImage(null);setResult(null);setError("");}} style={{position:"absolute",top:8,right:8,width:28,height:28,borderRadius:"50%",background:"#000a",border:"none",color:"#fff",fontSize:14,cursor:"pointer"}}>✕</button>
             </div>
             {!result&&!error&&(
               <Btn onClick={scan} disabled={scanning} style={{width:"100%",justifyContent:"center"}}>
-                {scanning?"🔍 AI is reading prescription...":"🔍 Scan with AI"}
+                {scanning?"🔍 Reading prescription...":"🔍 Scan with AI"}
               </Btn>
             )}
           </div>
         )}
+
         {error&&(
           <div style={{padding:"12px 14px",borderRadius:12,background:T.danD,border:`1px solid ${T.dan}44`,fontSize:13,color:T.dan,marginBottom:16}}>
             ⚠️ {error}
             <span onClick={()=>{setImage(null);setError("");}} style={{color:T.acc,fontWeight:700,cursor:"pointer",fontSize:12,marginLeft:8}}>Try again →</span>
           </div>
         )}
+
         {result&&result.length>0&&(
           <>
             <div style={{padding:"10px 14px",borderRadius:10,background:T.safeD,border:`1px solid ${T.safe}44`,fontSize:13,color:T.safe,marginBottom:14}}>
-              ✅ Found {result.length} medicine{result.length>1?"s":""} in your prescription
+              ✅ Found {result.length} medicine{result.length>1?"s":""} — prescribed quantities detected
             </div>
-            <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Select medicines to add ({selected.length} selected)</div>
+            <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Select medicines to add</div>
             <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
               {result.map((m,i)=>(
                 <div key={i} onClick={()=>setSelected(p=>p.includes(i)?p.filter(x=>x!==i):[...p,i])} style={{padding:14,borderRadius:14,background:selected.includes(i)?T.accD:T.hi,border:`2px solid ${selected.includes(i)?T.acc:T.bd}`,cursor:"pointer"}}>
@@ -306,10 +211,12 @@ Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,
                     <div style={{flex:1}}>
                       <div style={{fontSize:15,fontWeight:800,color:T.tx}}>{m.name}</div>
                       <div style={{fontSize:12,color:T.tm,marginTop:2}}>{m.dose} · {m.cat}</div>
-                      <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                        <Chip color={T.vio}>Prescribed: {m.prescribed} tablets</Chip>
                         <Chip color={T.acc}>{m.tpd}x per day</Chip>
-                        <Chip color={T.blu}>{m.times?.join(", ")}</Chip>
-                        <Chip color={T.warn}>{m.stock} tablets</Chip>
+                      </div>
+                      <div style={{marginTop:8,padding:"6px 10px",borderRadius:8,background:T.warnD,fontSize:11,color:T.warn}}>
+                        ⚠️ Stock = 0 until you upload purchase bill
                       </div>
                       {m.instructions&&<div style={{fontSize:11,color:T.vio,marginTop:6}}>💡 {m.instructions}</div>}
                     </div>
@@ -324,12 +231,219 @@ Rules: tpd=times per day 1-4, times based on tpd (08:00 morning,14:00 afternoon,
           </>
         )}
       </div>
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-// ── ADD/EDIT MEDICINE MODAL ────────────────────────────────────────────────────
+// ── BILL SCANNER ──────────────────────────────────────────────────────────────
+function BillScanner({meds,onUpdate,onClose}){
+  const fileRef=useRef();
+  const [image,setImage]=useState(null);
+  const [scanning,setScanning]=useState(false);
+  const [result,setResult]=useState(null);
+  const [error,setError]=useState("");
+  const [matches,setMatches]=useState([]);
+
+  const handleFile=e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      setImage({url:ev.target.result,name:file.name,base64:ev.target.result.split(",")[1],type:file.type});
+      setResult(null);setError("");setMatches([]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const scan=async()=>{
+    if(!image)return;
+    setScanning(true);setError("");
+    try{
+      const medNames=meds.map(m=>m.name).join(", ");
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:2000,
+          messages:[{
+            role:"user",
+            content:[
+              {type:"image",source:{type:"base64",media_type:image.type,data:image.base64}},
+              {type:"text",text:`This is a MEDICINE PURCHASE BILL from a pharmacy/medical store.
+Known medicines in our system: ${medNames}
+
+Extract ALL medicines purchased and their quantities.
+Return ONLY a JSON array:
+[{
+  "name": "Medicine name exactly as in bill",
+  "quantity": 30,
+  "price": 150.50,
+  "matched": "Closest medicine name from known list or null"
+}]
+- quantity = number of tablets/capsules purchased
+- price = total price for this medicine (optional)
+- matched = match to known medicine name if similar
+Return ONLY JSON array, no other text.`}
+            ]
+          }]
+        })
+      });
+      const data=await res.json();
+      const text=data.content?.[0]?.text||"[]";
+      const clean=text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      if(!Array.isArray(parsed)||parsed.length===0){
+        setError("No medicines found in bill. Try a clearer photo.");
+      } else {
+        setResult(parsed);
+        // Auto-match to existing medicines
+        const matchResults=parsed.map(item=>{
+          const matched=meds.find(m=>
+            m.name.toLowerCase()===item.name.toLowerCase()||
+            m.name.toLowerCase().includes(item.name.toLowerCase())||
+            item.name.toLowerCase().includes(m.name.toLowerCase())||
+            (item.matched&&m.name.toLowerCase()===item.matched.toLowerCase())
+          );
+          return {...item,medId:matched?.id||null,medName:matched?.name||null,selected:!!matched};
+        });
+        setMatches(matchResults);
+      }
+    }catch(e){
+      setError("Could not read bill. Try a clearer photo.");
+    }
+    setScanning(false);
+  };
+
+  const updateMatch=(i,medId)=>{
+    const med=meds.find(m=>m.id===parseInt(medId));
+    setMatches(p=>p.map((m,idx)=>idx===i?{...m,medId:parseInt(medId),medName:med?.name||null}:m));
+  };
+
+  const toggleSelect=(i)=>{
+    setMatches(p=>p.map((m,idx)=>idx===i?{...m,selected:!m.selected}:m));
+  };
+
+  const applyBill=()=>{
+    const updates=[];
+    matches.filter(m=>m.selected&&m.medId).forEach(match=>{
+      updates.push({
+        medId:match.medId,
+        quantity:match.quantity,
+        bill:{id:Date.now(),url:image.url,name:image.name,date:new Date().toLocaleDateString("en-IN"),quantity:match.quantity,price:match.price}
+      });
+    });
+    onUpdate(updates);
+    onClose();
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"#000b",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,maxHeight:"92vh",overflow:"auto",border:`1px solid ${T.bd}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,color:T.tx}}>🧾 Scan Purchase Bill</div>
+            <div style={{fontSize:12,color:T.tm}}>Updates actual stock purchased</div>
+          </div>
+          <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
+        </div>
+
+        <div style={{padding:12,borderRadius:12,background:T.safeD,border:`1px solid ${T.safe}33`,marginBottom:16,fontSize:12,color:T.safe}}>
+          🧾 <strong>Bill scan</strong> updates your actual purchased quantity and compares against prescription. Any difference is shown as shortage or excess.
+        </div>
+
+        {!image?(
+          <div onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"32px 24px",borderRadius:16,border:`2px dashed ${T.bd}`,textAlign:"center",cursor:"pointer",background:T.hi}}>
+            <div style={{fontSize:48,marginBottom:12}}>🧾</div>
+            <div style={{fontSize:15,fontWeight:700,color:T.tx,marginBottom:6}}>Upload Purchase Bill</div>
+            <div style={{fontSize:12,color:T.tm}}>Medical store receipt, chemist bill, online pharmacy invoice</div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}} capture="environment"/>
+          </div>
+        ):(
+          <div style={{marginBottom:16}}>
+            <div style={{position:"relative",marginBottom:12}}>
+              <img src={image.url} alt="bill" style={{width:"100%",borderRadius:14,maxHeight:200,objectFit:"cover",border:`1px solid ${T.bd}`}}/>
+              <button onClick={()=>{setImage(null);setResult(null);setError("");setMatches([]);}} style={{position:"absolute",top:8,right:8,width:28,height:28,borderRadius:"50%",background:"#000a",border:"none",color:"#fff",fontSize:14,cursor:"pointer"}}>✕</button>
+            </div>
+            {!result&&!error&&(
+              <Btn onClick={scan} disabled={scanning} style={{width:"100%",justifyContent:"center"}}>
+                {scanning?"🔍 Reading bill...":"🔍 Scan Bill with AI"}
+              </Btn>
+            )}
+          </div>
+        )}
+
+        {error&&(
+          <div style={{padding:"12px 14px",borderRadius:12,background:T.danD,border:`1px solid ${T.dan}44`,fontSize:13,color:T.dan,marginBottom:16}}>
+            ⚠️ {error}
+            <span onClick={()=>{setImage(null);setError("");}} style={{color:T.acc,fontWeight:700,cursor:"pointer",fontSize:12,marginLeft:8}}>Try again →</span>
+          </div>
+        )}
+
+        {matches.length>0&&(
+          <>
+            <div style={{padding:"10px 14px",borderRadius:10,background:T.safeD,border:`1px solid ${T.safe}44`,fontSize:13,color:T.safe,marginBottom:14}}>
+              ✅ Found {matches.length} medicine{matches.length>1?"s":""} in bill
+            </div>
+            <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Match bill items to medicines</div>
+            <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:20}}>
+              {matches.map((m,i)=>{
+                const med=meds.find(x=>x.id===m.medId);
+                const inv=med?inventoryStatus({...med,purchased:(med.purchased||0)+m.quantity}):null;
+                return(
+                  <div key={i} style={{padding:14,borderRadius:14,background:m.selected?T.safeD:T.hi,border:`2px solid ${m.selected?T.safe:T.bd}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <div onClick={()=>toggleSelect(i)} style={{width:22,height:22,borderRadius:7,border:`2px solid ${m.selected?T.safe:T.tf}`,background:m.selected?T.safe:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
+                        {m.selected&&<span style={{fontSize:12,color:T.bg,fontWeight:900}}>✓</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:14,fontWeight:700,color:T.tx}}>{m.name}</div>
+                        <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
+                          <Chip color={T.acc}>Bought: {m.quantity} tablets</Chip>
+                          {m.price&&<Chip color={T.blu}>₹{m.price}</Chip>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Match to medicine */}
+                    <div style={{marginBottom:8}}>
+                      <div style={{fontSize:10,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Match to medicine</div>
+                      <select value={m.medId||""} onChange={e=>updateMatch(i,e.target.value)} style={{width:"100%",padding:"8px 12px",borderRadius:10,background:T.sur,border:`1px solid ${T.bd}`,color:T.tx,fontSize:13,outline:"none",fontFamily:"inherit"}}>
+                        <option value="">-- Select medicine --</option>
+                        {meds.map(med=>(
+                          <option key={med.id} value={med.id}>{med.name} ({med.dose})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Inventory preview */}
+                    {inv&&m.selected&&(
+                      <div style={{padding:"8px 10px",borderRadius:10,background:inv.color+"18",border:`1px solid ${inv.color}33`,fontSize:12}}>
+                        <div style={{fontWeight:700,color:inv.color,marginBottom:4}}>
+                          {inv.status==="short"?"📦 Shortage":inv.status==="excess"?"📦 Excess":"📦 Exact"}
+                        </div>
+                        <div style={{color:T.tx}}>
+                          Prescribed: {med.prescribed} · Currently purchased: {(med.purchased||0)} · Adding: {m.quantity}
+                        </div>
+                        <div style={{color:inv.color,fontWeight:700,marginTop:2}}>{inv.msg}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <Btn outline onClick={()=>{setImage(null);setResult(null);setMatches([]);}} style={{flex:1,justifyContent:"center"}}>Rescan</Btn>
+              <Btn onClick={applyBill} disabled={!matches.some(m=>m.selected&&m.medId)} style={{flex:2,justifyContent:"center"}}>✓ Update Inventory</Btn>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── ADD/EDIT MEDICINE MODAL ───────────────────────────────────────────────────
 function MedicineModal({med,onSave,onClose}){
   const isEdit=!!med;
   const [name,setName]=useState(med?.name||"");
@@ -337,8 +451,8 @@ function MedicineModal({med,onSave,onClose}){
   const [cat,setCat]=useState(med?.cat||"Diabetes");
   const [tpd,setTpd]=useState(med?.tpd||1);
   const [times,setTimes]=useState(med?.times||["08:00"]);
-  const [stock,setStock]=useState(med?.stock?.toString()||"");
-  const [total,setTotal]=useState(med?.total?.toString()||"");
+  const [prescribed,setPrescribed]=useState(med?.prescribed?.toString()||"30");
+  const [purchased,setPurchased]=useState(med?.purchased?.toString()||"0");
   const [color,setColor]=useState(med?.color||T.acc);
   const [error,setError]=useState("");
 
@@ -350,8 +464,16 @@ function MedicineModal({med,onSave,onClose}){
   };
 
   const save=()=>{
-    if(!name||!dose||!stock){setError("Name, dose and stock are required");return;}
-    onSave({id:med?.id||Date.now(),name,dose,cat,tpd,times,stock:parseInt(stock),total:parseInt(total)||parseInt(stock),color,bills:med?.bills||[]});
+    if(!name||!dose){setError("Name and dose are required");return;}
+    const p=parseInt(purchased)||0;
+    onSave({
+      id:med?.id||Date.now(),name,dose,cat,tpd,times,
+      prescribed:parseInt(prescribed)||30,
+      purchased:p,stock:p,
+      color,bills:med?.bills||[],
+      prescriptions:med?.prescriptions||[],
+      instructions:med?.instructions||""
+    });
     onClose();
   };
 
@@ -386,10 +508,27 @@ function MedicineModal({med,onSave,onClose}){
             ))}
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-          <Inp label="Current Stock" value={stock} onChange={setStock} placeholder="60" type="number"/>
-          <Inp label="Total Prescribed" value={total} onChange={setTotal} placeholder="60" type="number"/>
+
+        {/* Prescribed vs Purchased */}
+        <div style={{padding:14,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:14}}>
+          <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Inventory</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <div style={{fontSize:11,color:T.vio,fontWeight:700,marginBottom:6}}>📋 Prescribed by doctor</div>
+              <input value={prescribed} onChange={e=>setPrescribed(e.target.value)} type="number" placeholder="30" style={{width:"100%",padding:"10px 12px",borderRadius:10,background:T.sur,border:`1px solid ${T.vio}44`,color:T.tx,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:T.safe,fontWeight:700,marginBottom:6}}>🛒 Purchased from medical</div>
+              <input value={purchased} onChange={e=>setPurchased(e.target.value)} type="number" placeholder="0" style={{width:"100%",padding:"10px 12px",borderRadius:10,background:T.sur,border:`1px solid ${T.safe}44`,color:T.tx,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          </div>
+          {prescribed&&purchased&&(
+            <div style={{marginTop:10,padding:"8px 10px",borderRadius:8,background:inventoryStatus({prescribed:parseInt(prescribed),purchased:parseInt(purchased)}).color+"18",fontSize:12,color:inventoryStatus({prescribed:parseInt(prescribed),purchased:parseInt(purchased)}).color,fontWeight:600}}>
+              {inventoryStatus({prescribed:parseInt(prescribed)||0,purchased:parseInt(purchased)||0}).msg}
+            </div>
+          )}
         </div>
+
         <div style={{marginBottom:20}}>
           <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Color</div>
           <div style={{display:"flex",gap:10}}>
@@ -408,76 +547,16 @@ function MedicineModal({med,onSave,onClose}){
   );
 }
 
-// ── BILL MODAL ─────────────────────────────────────────────────────────────────
-function BillModal({med,onSave,onClose}){
-  const fileRef=useRef();
-  const [bills,setBills]=useState(med.bills||[]);
-  const [preview,setPreview]=useState(null);
-  const [note,setNote]=useState("");
-
-  const handleFile=e=>{
-    const file=e.target.files[0];
-    if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>setPreview({url:ev.target.result,name:file.name,size:(file.size/1024).toFixed(0)+"KB"});
-    reader.readAsDataURL(file);
-  };
+// ── MEDICINE DETAIL ───────────────────────────────────────────────────────────
+function MedicineDetail({med,onEdit,onDelete,onClose}){
+  const d=daysLeft(med);
+  const urg=d<=3?T.dan:d<=7?T.warn:T.acc;
+  const inv=inventoryStatus(med);
+  const diff=med.purchased-med.prescribed;
 
   return(
     <div style={{position:"fixed",inset:0,background:"#000b",zIndex:150,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,maxHeight:"90vh",overflow:"auto",border:`1px solid ${T.bd}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <div>
-            <div style={{fontSize:18,fontWeight:800,color:T.tx}}>Bills & Prescriptions</div>
-            <div style={{fontSize:12,color:T.tm}}>{med.name}</div>
-          </div>
-          <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
-        </div>
-        <div onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"24px",borderRadius:16,border:`2px dashed ${T.bd}`,textAlign:"center",cursor:"pointer",background:T.hi,marginBottom:16}}>
-          <div style={{fontSize:32,marginBottom:8}}>📄</div>
-          <div style={{fontSize:14,fontWeight:700,color:T.tx}}>Upload bill or prescription</div>
-          <div style={{fontSize:12,color:T.tm,marginTop:4}}>Photo or image file</div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
-        </div>
-        {preview&&(
-          <div style={{padding:14,borderRadius:14,background:T.accD,border:`1px solid ${T.accM}`,marginBottom:16}}>
-            <img src={preview.url} alt="bill" style={{width:"100%",borderRadius:10,maxHeight:160,objectFit:"cover",marginBottom:10}}/>
-            <Inp label="Note (optional)" value={note} onChange={setNote} placeholder="e.g. April refill receipt"/>
-            <div style={{display:"flex",gap:8}}>
-              <Btn outline onClick={()=>setPreview(null)} style={{flex:1,justifyContent:"center"}}>Remove</Btn>
-              <Btn onClick={()=>{setBills(b=>[...b,{id:Date.now(),url:preview.url,name:preview.name,size:preview.size,note,date:new Date().toLocaleDateString("en-IN")}]);setPreview(null);setNote("");}} style={{flex:2,justifyContent:"center"}}>✓ Add Bill</Btn>
-            </div>
-          </div>
-        )}
-        {bills.length>0&&(
-          <>
-            <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Uploaded ({bills.length})</div>
-            {bills.map(b=>(
-              <div key={b.id} style={{padding:12,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,display:"flex",gap:12,alignItems:"center",marginBottom:8}}>
-                <img src={b.url} alt="bill" style={{width:50,height:50,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700,color:T.tx}}>{b.name}</div>
-                  <div style={{fontSize:11,color:T.tm}}>{b.date}{b.note?` · ${b.note}`:""}</div>
-                </div>
-                <button onClick={()=>setBills(p=>p.filter(x=>x.id!==b.id))} style={{padding:"4px 8px",borderRadius:8,background:T.danD,border:`1px solid ${T.dan}44`,color:T.dan,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
-              </div>
-            ))}
-          </>
-        )}
-        {bills.length===0&&!preview&&<div style={{textAlign:"center",padding:"20px 0",color:T.tm,fontSize:13}}>No bills uploaded yet</div>}
-        <Btn onClick={()=>{onSave(bills);onClose();}} style={{width:"100%",justifyContent:"center",marginTop:8}}>Save & Close</Btn>
-      </div>
-    </div>
-  );
-}
-
-// ── MEDICINE DETAIL ────────────────────────────────────────────────────────────
-function MedicineDetail({med,onEdit,onDelete,onBills,onClose}){
-  const d=daysLeft(med);
-  const urg=d<=3?T.dan:d<=7?T.warn:T.acc;
-  return(
-    <div style={{position:"fixed",inset:0,background:"#000b",zIndex:150,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-      <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,border:`1px solid ${T.bd}`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:44,height:44,borderRadius:14,background:med.color+"22",border:`1px solid ${med.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💊</div>
@@ -488,20 +567,68 @@ function MedicineDetail({med,onEdit,onDelete,onBills,onClose}){
           </div>
           <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
         </div>
+
+        {/* Inventory Intelligence */}
+        <div style={{padding:16,borderRadius:14,background:inv.color+"15",border:`2px solid ${inv.color}33`,marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:inv.color,textTransform:"uppercase",letterSpacing:".06em",marginBottom:12}}>
+            📦 Inventory Status
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            <div style={{textAlign:"center",padding:10,borderRadius:10,background:T.vioD,border:`1px solid ${T.vio}33`}}>
+              <div style={{fontSize:20,fontWeight:900,color:T.vio}}>{med.prescribed}</div>
+              <div style={{fontSize:10,color:T.vio,marginTop:2}}>📋 Prescribed</div>
+            </div>
+            <div style={{textAlign:"center",padding:10,borderRadius:10,background:T.safeD,border:`1px solid ${T.safe}33`}}>
+              <div style={{fontSize:20,fontWeight:900,color:T.safe}}>{med.purchased}</div>
+              <div style={{fontSize:10,color:T.safe,marginTop:2}}>🛒 Purchased</div>
+            </div>
+            <div style={{textAlign:"center",padding:10,borderRadius:10,background:urg+"18",border:`1px solid ${urg}33`}}>
+              <div style={{fontSize:20,fontWeight:900,color:urg}}>{med.stock}</div>
+              <div style={{fontSize:10,color:urg,marginTop:2}}>💊 In Hand</div>
+            </div>
+          </div>
+
+          {/* Difference alert */}
+          {diff!==0&&(
+            <div style={{padding:"10px 12px",borderRadius:10,background:inv.color+"18",border:`1px solid ${inv.color}33`}}>
+              <div style={{fontSize:13,fontWeight:700,color:inv.color}}>
+                {diff>0?`✅ You bought ${diff} extra tablets`:`🚨 You are ${Math.abs(diff)} tablets short`}
+              </div>
+              <div style={{fontSize:12,color:T.tm,marginTop:4}}>
+                {diff>0
+                  ?`Good stock. Extra ${diff} tablets will last ${Math.floor(diff/med.tpd)} more days.`
+                  :`Doctor prescribed ${med.prescribed} but you only bought ${med.purchased}. Buy ${Math.abs(diff)} more tablets.`
+                }
+              </div>
+            </div>
+          )}
+
+          {diff===0&&(
+            <div style={{padding:"10px 12px",borderRadius:10,background:T.accD,border:`1px solid ${T.accM}`}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.acc}}>✅ Exactly as prescribed</div>
+              <div style={{fontSize:12,color:T.tm,marginTop:2}}>You purchased exactly what the doctor prescribed.</div>
+            </div>
+          )}
+        </div>
+
+        {/* Days remaining */}
         <div style={{padding:14,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <span style={{fontSize:13,color:T.tm}}>Stock</span>
+            <span style={{fontSize:13,color:T.tm}}>Current Stock</span>
             <Chip color={urg}>{d} days left</Chip>
           </div>
           <div style={{height:8,background:T.bg,borderRadius:4,marginBottom:6}}>
-            <div style={{height:"100%",width:`${(med.stock/med.total)*100}%`,background:urg,borderRadius:4}}/>
+            <div style={{height:"100%",width:`${Math.min((med.stock/Math.max(med.prescribed,1))*100,100)}%`,background:urg,borderRadius:4}}/>
           </div>
           <div style={{fontSize:12,color:T.tm,display:"flex",justifyContent:"space-between"}}>
-            <span>{med.stock} remaining</span><span>of {med.total}</span>
+            <span>{med.stock} tablets remaining</span>
+            <span>{med.tpd}x per day</span>
           </div>
         </div>
+
+        {/* Schedule */}
         <div style={{padding:14,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:20}}>
-          <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Schedule — {med.tpd}x per day</div>
+          <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Schedule</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {med.times.map((t,i)=>(
               <div key={i} style={{padding:"6px 14px",borderRadius:20,background:T.sur,border:`1px solid ${T.bd}`,fontSize:13,color:T.tx,fontWeight:600}}>⏰ {t}</div>
@@ -509,32 +636,28 @@ function MedicineDetail({med,onEdit,onDelete,onBills,onClose}){
           </div>
           {med.instructions&&<div style={{fontSize:12,color:T.vio,marginTop:8}}>💡 {med.instructions}</div>}
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div style={{display:"flex",gap:10}}>
-            <Btn onClick={onEdit} style={{flex:1,justifyContent:"center"}}>✏️ Edit</Btn>
-            <Btn onClick={onBills} outline style={{flex:1,justifyContent:"center"}}>📄 Bills {med.bills?.length>0?`(${med.bills.length})`:""}</Btn>
-          </div>
-          <button onClick={onDelete} style={{width:"100%",padding:"11px 0",borderRadius:12,background:T.danD,border:`1px solid ${T.dan}44`,color:T.dan,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete Medicine</button>
+
+        <div style={{display:"flex",gap:10}}>
+          <Btn onClick={onEdit} style={{flex:1,justifyContent:"center"}}>✏️ Edit</Btn>
+          <button onClick={onDelete} style={{flex:1,padding:"11px 0",borderRadius:12,background:T.danD,border:`1px solid ${T.dan}44`,color:T.dan,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── SENIOR VIEW ────────────────────────────────────────────────────────────────
+// ── SENIOR VIEW ───────────────────────────────────────────────────────────────
 function SeniorView({user,meds,onAction,onLogout}){
   const [idx,setIdx]=useState(0);
   const [done,setDone]=useState({});
   const med=meds[idx];
   const responded=done[idx];
   const t=new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
-
   const handle=status=>{
     setDone(p=>({...p,[idx]:status}));
     onAction(med.id,status);
     setTimeout(()=>{if(idx<meds.length-1){setIdx(i=>i+1);setDone({});}},1800);
   };
-
   return(
     <div style={{height:"100vh",background:T.bg,display:"flex",flexDirection:"column"}}>
       <div style={{padding:"14px 20px",background:T.sur,borderBottom:`1px solid ${T.bd}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -588,14 +711,12 @@ function LoginScreen({onLogin}){
   const [pass,setPass]=useState("");
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(false);
-
   const handle=()=>{
     if(!email||!pass){setError("Please fill all fields");return;}
     if(isSignup&&!name){setError("Please enter your name");return;}
     setError("");setLoading(true);
     setTimeout(()=>{setLoading(false);onLogin({name:name||email.split("@")[0],email,role});},1200);
   };
-
   return(
     <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{width:"100%",maxWidth:400}}>
@@ -636,14 +757,14 @@ function LoginScreen({onLogin}){
   );
 }
 
-// ── FAMILY DASHBOARD ───────────────────────────────────────────────────────────
+// ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
   const [tab,setTab]=useState("overview");
-  const [showScanner,setShowScanner]=useState(false);
+  const [showPrescScanner,setShowPrescScanner]=useState(false);
+  const [showBillScanner,setShowBillScanner]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [editMed,setEditMed]=useState(null);
   const [detailMed,setDetailMed]=useState(null);
-  const [billMed,setBillMed]=useState(null);
   const [deleteConfirm,setDeleteConfirm]=useState(null);
   const [showSenior,setShowSenior]=useState(false);
 
@@ -652,10 +773,19 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
     return Math.round((logs.filter(l=>l.status==="taken").length/logs.length)*100);
   };
 
-  const handleSaveMed=data=>{
-    if(editMed) setMeds(p=>p.map(m=>m.id===data.id?{...m,...data}:m));
-    else setMeds(p=>[...p,data]);
-    setEditMed(null);
+  const handleBillUpdate=(updates)=>{
+    setMeds(prev=>prev.map(med=>{
+      const update=updates.find(u=>u.medId===med.id);
+      if(!update)return med;
+      const newPurchased=(med.purchased||0)+update.quantity;
+      const newStock=(med.stock||0)+update.quantity;
+      return{
+        ...med,
+        purchased:newPurchased,
+        stock:newStock,
+        bills:[...(med.bills||[]),update.bill]
+      };
+    }));
   };
 
   const handleAction=(medId,status)=>{
@@ -665,6 +795,11 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
     setLogs(p=>[{id:Date.now(),med:med.name,time:t,status,src:"app",day:"Today"},...p]);
     if(status==="taken")setMeds(p=>p.map(m=>m.id===medId?{...m,stock:Math.max(0,m.stock-1)}:m));
   };
+
+  // Inventory alerts
+  const shortMeds=meds.filter(m=>(m.purchased||0)<(m.prescribed||0));
+  const excessMeds=meds.filter(m=>(m.purchased||0)>(m.prescribed||0));
+  const lowStockMeds=meds.filter(m=>daysLeft(m)<=7);
 
   if(showSenior){
     return(
@@ -681,10 +816,11 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100vh",background:T.bg}}>
-      {showScanner&&<PrescriptionScanner onMedsFound={newMeds=>setMeds(p=>[...p,...newMeds])} onClose={()=>setShowScanner(false)}/>}
-      {(showAdd||editMed)&&<MedicineModal med={editMed} onSave={handleSaveMed} onClose={()=>{setShowAdd(false);setEditMed(null);}}/>}
+      {showPrescScanner&&<PrescriptionScanner onMedsFound={newMeds=>setMeds(p=>[...p,...newMeds])} onClose={()=>setShowPrescScanner(false)}/>}
+      {showBillScanner&&<BillScanner meds={meds} onUpdate={handleBillUpdate} onClose={()=>setShowBillScanner(false)}/>}
+      {(showAdd||editMed)&&<MedicineModal med={editMed} onSave={data=>{if(editMed)setMeds(p=>p.map(m=>m.id===data.id?{...m,...data}:m));else setMeds(p=>[...p,data]);setEditMed(null);setShowAdd(false);}} onClose={()=>{setShowAdd(false);setEditMed(null);}}/>}
       {detailMed&&!deleteConfirm&&(
-        <MedicineDetail med={detailMed} onEdit={()=>{setEditMed(detailMed);setDetailMed(null);}} onDelete={()=>setDeleteConfirm(detailMed)} onBills={()=>{setBillMed(detailMed);setDetailMed(null);}} onClose={()=>setDetailMed(null)}/>
+        <MedicineDetail med={detailMed} onEdit={()=>{setEditMed(detailMed);setDetailMed(null);}} onDelete={()=>setDeleteConfirm(detailMed)} onClose={()=>setDetailMed(null)}/>
       )}
       {deleteConfirm&&(
         <div style={{position:"fixed",inset:0,background:"#000b",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -699,7 +835,6 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
           </div>
         </div>
       )}
-      {billMed&&<BillModal med={billMed} onSave={bills=>setMeds(p=>p.map(m=>m.id===billMed.id?{...m,bills}:m))} onClose={()=>setBillMed(null)}/>}
 
       {/* Header */}
       <div style={{padding:"14px 16px 0",background:T.sur,borderBottom:`1px solid ${T.bd}`}}>
@@ -713,38 +848,65 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
             <button onClick={onLogout} style={{padding:"5px 10px",borderRadius:8,background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Logout</button>
           </div>
         </div>
-
-        {/* Notification banner */}
-        <NotifBanner meds={meds}/>
-
-        <div style={{display:"flex",marginTop:10}}>
-          {["overview","medicines","history"].map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",border:"none",background:"transparent",cursor:"pointer",borderBottom:tab===t?`2px solid ${T.acc}`:"2px solid transparent",color:tab===t?T.acc:T.tm,fontSize:12,fontWeight:700,textTransform:"capitalize",fontFamily:"inherit"}}>{t}</button>
+        <div style={{display:"flex",marginTop:4}}>
+          {["overview","medicines","inventory","history"].map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"8px 0",border:"none",background:"transparent",cursor:"pointer",borderBottom:tab===t?`2px solid ${T.acc}`:"2px solid transparent",color:tab===t?T.acc:T.tm,fontSize:11,fontWeight:700,textTransform:"capitalize",fontFamily:"inherit"}}>{t}</button>
           ))}
         </div>
       </div>
 
       {/* Content */}
       <div style={{flex:1,overflow:"auto",padding:16,display:"flex",flexDirection:"column",gap:14}}>
+
         {tab==="overview"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[{l:"Adherence",v:`${adh()}%`,c:T.acc},{l:"Medicines",v:meds.length,c:T.blu},{l:"Low Stock",v:meds.filter(m=>daysLeft(m)<=7).length,c:T.warn},{l:"Missed",v:logs.filter(l=>l.status==="missed").length,c:T.dan}].map(s=>(
+            {[
+              {l:"Adherence",v:`${adh()}%`,c:T.acc},
+              {l:"Medicines",v:meds.length,c:T.blu},
+              {l:"Low Stock",v:lowStockMeds.length,c:T.warn},
+              {l:"Shortage",v:shortMeds.length,c:T.dan},
+            ].map(s=>(
               <Card key={s.l} style={{textAlign:"center",padding:14}}>
                 <div style={{fontSize:26,fontWeight:900,color:s.c}}>{s.v}</div>
                 <div style={{fontSize:11,color:T.tm,marginTop:2}}>{s.l}</div>
               </Card>
             ))}
           </div>
-          {meds.filter(m=>daysLeft(m)<=7).map(m=>(
+
+          {/* Shortage alerts */}
+          {shortMeds.map(m=>(
             <div key={m.id} style={{padding:"12px 14px",borderRadius:12,background:T.danD,border:`1px solid ${T.dan}44`,display:"flex",alignItems:"center",gap:12}}>
-              <span>⚠️</span>
+              <span style={{fontSize:20}}>🚨</span>
               <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.dan}}>{m.name}</div>
-                <div style={{fontSize:12,color:T.tx}}>{daysLeft(m)} days left</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.dan}}>{m.name} — Tablet Shortage</div>
+                <div style={{fontSize:12,color:T.tx}}>Prescribed {m.prescribed} · Bought {m.purchased} · Need {m.prescribed-m.purchased} more</div>
               </div>
-              <button onClick={()=>setMeds(p=>p.map(x=>x.id===m.id?{...x,stock:x.total}:x))} style={{padding:"5px 12px",borderRadius:8,background:T.dan+"33",border:`1px solid ${T.dan}66`,color:T.dan,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Refill</button>
             </div>
           ))}
+
+          {/* Excess alerts */}
+          {excessMeds.map(m=>(
+            <div key={m.id} style={{padding:"12px 14px",borderRadius:12,background:T.safeD,border:`1px solid ${T.safe}44`,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:20}}>✅</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.safe}}>{m.name} — Extra Stock</div>
+                <div style={{fontSize:12,color:T.tx}}>Prescribed {m.prescribed} · Bought {m.purchased} · {m.purchased-m.prescribed} extra tablets</div>
+              </div>
+            </div>
+          ))}
+
+          {/* Low stock */}
+          {lowStockMeds.map(m=>(
+            <div key={m.id} style={{padding:"12px 14px",borderRadius:12,background:T.warnD,border:`1px solid ${T.warn}44`,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:20}}>⚠️</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.warn}}>{m.name}</div>
+                <div style={{fontSize:12,color:T.tx}}>{daysLeft(m)} days left — refill needed</div>
+              </div>
+              <button onClick={()=>setMeds(p=>p.map(x=>x.id===m.id?{...x,stock:x.prescribed,purchased:x.prescribed}:x))} style={{padding:"5px 12px",borderRadius:8,background:T.warn+"33",border:`1px solid ${T.warn}66`,color:T.warn,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Refill</button>
+            </div>
+          ))}
+
           <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em"}}>Today</div>
           {logs.filter(l=>l.day==="Today").map((l,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`}}>
@@ -759,53 +921,127 @@ function FamilyDashboard({user,meds,setMeds,logs,setLogs,onLogout}){
         </>}
 
         {tab==="medicines"&&<>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <button onClick={()=>setShowScanner(true)} style={{padding:"16px 10px",borderRadius:14,background:`linear-gradient(135deg,${T.accD},${T.bluD})`,border:`2px solid ${T.acc}55`,color:T.acc,fontSize:12,fontWeight:700,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
-              <div style={{fontSize:24,marginBottom:6}}>📋</div>
-              Scan Prescription
-              <div style={{fontSize:10,color:T.tm,marginTop:3,fontWeight:400}}>AI reads automatically</div>
+          {/* Three add options */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            <button onClick={()=>setShowPrescScanner(true)} style={{padding:"14px 8px",borderRadius:14,background:T.vioD,border:`2px solid ${T.vio}44`,color:T.vio,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
+              <div style={{fontSize:22,marginBottom:4}}>📋</div>
+              Prescription
+              <div style={{fontSize:9,color:T.tm,marginTop:2,fontWeight:400}}>Sets prescribed qty</div>
             </button>
-            <button onClick={()=>setShowAdd(true)} style={{padding:"16px 10px",borderRadius:14,background:T.hi,border:`2px dashed ${T.bd}`,color:T.tm,fontSize:12,fontWeight:700,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
-              <div style={{fontSize:24,marginBottom:6}}>✏️</div>
-              Add Manually
-              <div style={{fontSize:10,marginTop:3,fontWeight:400}}>Type details yourself</div>
+            <button onClick={()=>setShowBillScanner(true)} style={{padding:"14px 8px",borderRadius:14,background:T.safeD,border:`2px solid ${T.safe}44`,color:T.safe,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
+              <div style={{fontSize:22,marginBottom:4}}>🧾</div>
+              Bill
+              <div style={{fontSize:9,color:T.tm,marginTop:2,fontWeight:400}}>Updates stock bought</div>
+            </button>
+            <button onClick={()=>setShowAdd(true)} style={{padding:"14px 8px",borderRadius:14,background:T.hi,border:`2px dashed ${T.bd}`,color:T.tm,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
+              <div style={{fontSize:22,marginBottom:4}}>✏️</div>
+              Manual
+              <div style={{fontSize:9,marginTop:2,fontWeight:400}}>Type yourself</div>
             </button>
           </div>
+
           {meds.map(m=>{
             const d=daysLeft(m);
             const urg=d<=3?T.dan:d<=7?T.warn:T.acc;
+            const inv=inventoryStatus(m);
             return(
-              <div key={m.id} onClick={()=>setDetailMed(m)} style={{background:T.sur,border:`1px solid ${T.bd}`,borderRadius:16,padding:18,cursor:"pointer"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div key={m.id} onClick={()=>setDetailMed(m)} style={{background:T.sur,border:`1px solid ${T.bd}`,borderRadius:16,padding:16,cursor:"pointer"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{width:38,height:38,borderRadius:11,background:m.color+"22",border:`1px solid ${m.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💊</div>
+                    <div style={{width:36,height:36,borderRadius:11,background:m.color+"22",border:`1px solid ${m.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>💊</div>
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:T.tx}}>{m.name}</div>
-                      <div style={{fontSize:12,color:T.tm}}>{m.dose} · {m.cat}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:T.tx}}>{m.name}</div>
+                      <div style={{fontSize:11,color:T.tm}}>{m.dose} · {m.cat}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
                     <Chip color={urg}>{d}d</Chip>
-                    {m.bills?.length>0&&<span style={{fontSize:10,color:T.tm}}>📄 {m.bills.length}</span>}
+                    <Chip color={inv.color}>{inv.status==="short"?"Short":inv.status==="excess"?"Excess":"Exact"}</Chip>
                   </div>
                 </div>
-                <div style={{height:4,background:T.hi,borderRadius:4,marginBottom:8}}>
-                  <div style={{height:"100%",width:`${(m.stock/m.total)*100}%`,background:urg,borderRadius:4}}/>
+                {/* Inventory bar */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
+                  <div style={{textAlign:"center",padding:"4px 0",borderRadius:8,background:T.vioD,fontSize:10,color:T.vio}}>
+                    <div style={{fontWeight:700}}>{m.prescribed}</div>
+                    <div>prescribed</div>
+                  </div>
+                  <div style={{textAlign:"center",padding:"4px 0",borderRadius:8,background:T.safeD,fontSize:10,color:T.safe}}>
+                    <div style={{fontWeight:700}}>{m.purchased||0}</div>
+                    <div>purchased</div>
+                  </div>
+                  <div style={{textAlign:"center",padding:"4px 0",borderRadius:8,background:urg+"18",fontSize:10,color:urg}}>
+                    <div style={{fontWeight:700}}>{m.stock}</div>
+                    <div>in hand</div>
+                  </div>
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.tm}}>
-                  <span>{m.times.join(" · ")}</span>
-                  <span>{m.stock}/{m.total}</span>
+                <div style={{height:4,background:T.hi,borderRadius:4}}>
+                  <div style={{height:"100%",width:`${Math.min((m.stock/Math.max(m.prescribed,1))*100,100)}%`,background:urg,borderRadius:4}}/>
                 </div>
               </div>
             );
           })}
-          {meds.length===0&&(
-            <div style={{textAlign:"center",padding:"40px 20px",color:T.tm}}>
-              <div style={{fontSize:40,marginBottom:12}}>💊</div>
-              <div style={{fontSize:15,fontWeight:700,color:T.tx,marginBottom:6}}>No medicines yet</div>
-              <div style={{fontSize:13}}>Scan a prescription or add manually</div>
-            </div>
-          )}
+        </>}
+
+        {tab==="inventory"&&<>
+          <div style={{padding:14,borderRadius:14,background:T.accD,border:`1px solid ${T.accM}`,fontSize:13,color:T.acc,marginBottom:4}}>
+            📊 Compare what doctor prescribed vs what you actually purchased from medical store
+          </div>
+
+          {meds.map(m=>{
+            const inv=inventoryStatus(m);
+            const diff=m.purchased-m.prescribed;
+            return(
+              <Card key={m.id}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontSize:15,fontWeight:700,color:T.tx}}>{m.name}</div>
+                  <Chip color={inv.color}>{inv.status==="short"?"Short":inv.status==="excess"?"Excess":"Exact"}</Chip>
+                </div>
+
+                {/* Three column comparison */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",marginBottom:12}}>
+                  <div style={{padding:12,borderRadius:12,background:T.vioD,border:`1px solid ${T.vio}33`,textAlign:"center"}}>
+                    <div style={{fontSize:11,color:T.vio,fontWeight:700,marginBottom:4}}>📋 Prescribed</div>
+                    <div style={{fontSize:24,fontWeight:900,color:T.vio}}>{m.prescribed}</div>
+                    <div style={{fontSize:10,color:T.tm}}>tablets</div>
+                  </div>
+                  <div style={{textAlign:"center",padding:"0 4px"}}>
+                    <div style={{fontSize:20,color:inv.color,fontWeight:900}}>
+                      {diff===0?"=":diff>0?"→":"←"}
+                    </div>
+                    <div style={{fontSize:10,color:T.tm,marginTop:2}}>
+                      {diff===0?"exact":diff>0?`+${diff}`:`${diff}`}
+                    </div>
+                  </div>
+                  <div style={{padding:12,borderRadius:12,background:T.safeD,border:`1px solid ${T.safe}33`,textAlign:"center"}}>
+                    <div style={{fontSize:11,color:T.safe,fontWeight:700,marginBottom:4}}>🛒 Purchased</div>
+                    <div style={{fontSize:24,fontWeight:900,color:T.safe}}>{m.purchased||0}</div>
+                    <div style={{fontSize:10,color:T.tm}}>tablets</div>
+                  </div>
+                </div>
+
+                {/* Alert */}
+                <div style={{padding:"10px 12px",borderRadius:10,background:inv.color+"18",border:`1px solid ${inv.color}33`,fontSize:12,color:inv.color,fontWeight:600,marginBottom:10}}>
+                  {diff<0&&`🚨 Buy ${Math.abs(diff)} more tablets from medical store`}
+                  {diff>0&&`✅ You have ${diff} extra tablets — good buffer stock`}
+                  {diff===0&&`✅ Purchased exactly as prescribed`}
+                </div>
+
+                {/* Stock progress */}
+                <div style={{fontSize:11,color:T.tm,marginBottom:4,display:"flex",justifyContent:"space-between"}}>
+                  <span>Current stock: {m.stock} tablets</span>
+                  <span>{daysLeft(m)} days left</span>
+                </div>
+                <div style={{height:6,background:T.hi,borderRadius:4}}>
+                  <div style={{height:"100%",width:`${Math.min((m.stock/Math.max(m.prescribed,1))*100,100)}%`,background:daysLeft(m)<=3?T.dan:daysLeft(m)<=7?T.warn:T.acc,borderRadius:4}}/>
+                </div>
+
+                {/* Upload bill button */}
+                <button onClick={(e)=>{e.stopPropagation();setShowBillScanner(true);}} style={{width:"100%",marginTop:12,padding:"8px 0",borderRadius:10,background:T.safeD,border:`1px solid ${T.safe}44`,color:T.safe,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  🧾 Upload Purchase Bill
+                </button>
+              </Card>
+            );
+          })}
         </>}
 
         {tab==="history"&&logs.map((l,i)=>(
@@ -845,7 +1081,6 @@ export default function App(){
       </div>
     );
   }
-
   if(user.role==="senior"){
     return(
       <div style={{fontFamily:"'Segoe UI',sans-serif"}}>
@@ -854,11 +1089,10 @@ export default function App(){
       </div>
     );
   }
-
   return(
     <div style={{fontFamily:"'Segoe UI',sans-serif",maxWidth:480,margin:"0 auto"}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;}input,select{font-family:inherit;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#2D3748;border-radius:2px;}`}</style>
       <FamilyDashboard user={user} meds={meds} setMeds={setMeds} logs={logs} setLogs={setLogs} onLogout={()=>setUser(null)}/>
     </div>
   );
-}
+    }
