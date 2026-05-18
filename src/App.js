@@ -1077,6 +1077,9 @@ export default function App(){
 if(window.location.pathname==="/admin"){
   return <Admin/>;
     }
+if(window.location.pathname==="/invite"){
+  return <Admin/>;
+    }
   if(!user){
     return(
       <div style={{fontFamily:"'Segoe UI',sans-serif"}}>
