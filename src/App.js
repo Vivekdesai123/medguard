@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import Admin from './Admin';
 
 const T = {
   bg:"#0D1117",sur:"#161B22",hi:"#1C2330",
@@ -1072,7 +1073,10 @@ export default function App(){
     setLogs(p=>[{id:Date.now(),med:med.name,time:t,status,src:"app",day:"Today"},...p]);
     if(status==="taken")setMeds(p=>p.map(m=>m.id===medId?{...m,stock:Math.max(0,m.stock-1)}:m));
   };
-
+  // Admin route — go to /admin in URL
+if(window.location.pathname==="/admin"){
+  return <Admin/>;
+    }
   if(!user){
     return(
       <div style={{fontFamily:"'Segoe UI',sans-serif"}}>
