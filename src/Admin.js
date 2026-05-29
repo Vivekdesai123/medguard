@@ -16,18 +16,17 @@ const ADMIN_EMAIL = "admin@medguard.in";
 const ADMIN_PASS = "MedGuard@Admin2026";
 const APP_URL = "https://medguard-fawn.vercel.app";
 
-// Generate random invite token
 const generateToken = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "";
-  for(let i=0; i<32; i++) token += chars[Math.floor(Math.random()*chars.length)];
-  return token;
+  let t = "";
+  for(let i=0;i<32;i++) t+=chars[Math.floor(Math.random()*chars.length)];
+  return t;
 };
 
 const INIT_FAMILIES = [
-  {id:1,name:"Kumar Family",email:"rajan.kumar@gmail.com",phone:"+91 98765 43210",plan:"pro",status:"active",joined:"Apr 1, 2026",lastActive:"Today",seniors:[{id:1,name:"Rajan Kumar",age:72,medicines:4,adherence:87},{id:2,name:"Kamla Kumar",age:68,medicines:3,adherence:92}],totalMeds:7,revenue:199,inviteToken:null,inviteStatus:"accepted"},
-  {id:2,name:"Sharma Family",email:"priya.sharma@gmail.com",phone:"+91 87654 32109",plan:"basic",status:"active",joined:"Apr 15, 2026",lastActive:"Yesterday",seniors:[{id:3,name:"Ram Sharma",age:75,medicines:6,adherence:71}],totalMeds:6,revenue:99,inviteToken:null,inviteStatus:"accepted"},
-  {id:3,name:"Patel Family",email:"amit.patel@gmail.com",phone:"+91 76543 21098",plan:"trial",status:"trial",joined:"May 10, 2026",lastActive:"Today",seniors:[{id:4,name:"Bhavna Patel",age:70,medicines:2,adherence:95}],totalMeds:2,revenue:0,inviteToken:"xyz123pending",inviteStatus:"pending"},
+  {id:1,name:"Kumar Family",email:"rajan.kumar@gmail.com",phone:"+91 98765 43210",plan:"pro",status:"active",joined:"Apr 1, 2026",lastActive:"Today",seniors:[{id:1,name:"Rajan Kumar",age:72,relation:"Father",medicines:4,adherence:87},{id:2,name:"Kamla Kumar",age:68,relation:"Mother",medicines:3,adherence:92}],totalMeds:7,revenue:199,inviteToken:null,inviteStatus:"accepted"},
+  {id:2,name:"Sharma Family",email:"priya.sharma@gmail.com",phone:"+91 87654 32109",plan:"basic",status:"active",joined:"Apr 15, 2026",lastActive:"Yesterday",seniors:[{id:3,name:"Ram Sharma",age:75,relation:"Father",medicines:6,adherence:71}],totalMeds:6,revenue:99,inviteToken:null,inviteStatus:"accepted"},
+  {id:3,name:"Patel Family",email:"amit.patel@gmail.com",phone:"+91 76543 21098",plan:"trial",status:"trial",joined:"May 10, 2026",lastActive:"Today",seniors:[{id:4,name:"Bhavna Patel",age:70,relation:"Mother",medicines:2,adherence:95}],totalMeds:2,revenue:0,inviteToken:"xyz123pending",inviteStatus:"pending"},
 ];
 
 const INIT_ALERTS = [
@@ -38,20 +37,36 @@ const INIT_ALERTS = [
 
 // ── PRIMITIVES ─────────────────────────────────────────────────────────────────
 function Chip({children,color}){
-  return <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:color+"22",color,border:`1px solid ${color}33`}}>{children}</span>;
+  return(
+    <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:color+"22",color,border:`1px solid ${color}33`}}>
+      {children}
+    </span>
+  );
 }
+
 function Card({children,style={}}){
-  return <div style={{background:T.sur,border:`1px solid ${T.bd}`,borderRadius:16,padding:16,...style}}>{children}</div>;
+  return(
+    <div style={{background:T.sur,border:`1px solid ${T.bd}`,borderRadius:16,padding:16,...style}}>
+      {children}
+    </div>
+  );
 }
+
 function Inp({label,value,onChange,placeholder,type="text",color}){
   return(
     <div style={{marginBottom:14}}>
       {label&&<div style={{fontSize:11,color:color||T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>{label}</div>}
-      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} type={type}
-        style={{width:"100%",padding:"11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${color?color+"44":T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+      <input
+        value={value}
+        onChange={e=>onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        style={{width:"100%",padding:"11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${color?color+"44":T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}
+      />
     </div>
   );
 }
+
 function Toggle({label,sub,on,onToggle}){
   return(
     <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:`1px solid ${T.bd}22`}}>
@@ -59,12 +74,16 @@ function Toggle({label,sub,on,onToggle}){
         <div style={{fontSize:13,fontWeight:600,color:T.tx}}>{label}</div>
         <div style={{fontSize:11,color:T.tm}}>{sub}</div>
       </div>
-      <div onClick={onToggle} style={{width:44,height:24,borderRadius:12,background:on?T.acc:T.hi,border:`1px solid ${on?T.acc:T.bd}`,position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+      <div
+        onClick={onToggle}
+        style={{width:44,height:24,borderRadius:12,background:on?T.acc:T.hi,border:`1px solid ${on?T.acc:T.bd}`,position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}
+      >
         <div style={{position:"absolute",top:2,left:on?22:2,width:20,height:20,borderRadius:"50%",background:on?T.bg:"#fff",transition:"left .2s"}}/>
       </div>
     </div>
   );
 }
+
 function StatCard({label,value,sub,color,icon}){
   return(
     <Card style={{textAlign:"center",padding:16}}>
@@ -76,10 +95,10 @@ function StatCard({label,value,sub,color,icon}){
   );
 }
 
-// ── INVITE LINK COMPONENT ──────────────────────────────────────────────────────
+// ── INVITE LINK ────────────────────────────────────────────────────────────────
 function InviteLink({family,onClose}){
   const [copied,setCopied]=useState(false);
-  const [whatsappSent,setWhatsappSent]=useState(false);
+  const [waSent,setWaSent]=useState(false);
   const link=`${APP_URL}/invite?token=${family.inviteToken}&email=${encodeURIComponent(family.email)}&name=${encodeURIComponent(family.name)}`;
 
   const copy=()=>{
@@ -93,10 +112,10 @@ function InviteLink({family,onClose}){
     setTimeout(()=>setCopied(false),2000);
   };
 
-  const sendWhatsApp=()=>{
-    const msg=`Hello! You have been invited to MedGuard — a medicine management system for your family.\n\nClick this link to set up your account:\n${link}\n\nThis link is valid for 7 days. Contact admin@medguard.in for help.`;
+  const sendWA=()=>{
+    const msg=`Hello ${family.name}!\n\nYou have been invited to MedGuard — a medicine management system for your family.\n\nClick this link to set up your account:\n${link}\n\nThis link is valid for 7 days.\n\nFor help contact: admin@medguard.in`;
     window.open(`https://wa.me/${family.phone.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
-    setWhatsappSent(true);
+    setWaSent(true);
   };
 
   return(
@@ -104,14 +123,13 @@ function InviteLink({family,onClose}){
       <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,border:`1px solid ${T.bd}`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div>
-            <div style={{fontSize:18,fontWeight:800,color:T.tx}}>📨 Invite Link</div>
-            <div style={{fontSize:12,color:T.tm}}>{family.name}</div>
+            <div style={{fontSize:18,fontWeight:800,color:T.tx}}>📨 Invite Link Ready</div>
+            <div style={{fontSize:12,color:T.tm}}>{family.name} · {family.email}</div>
           </div>
           <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
         </div>
 
-        {/* Invite link box */}
-        <div style={{padding:14,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:16}}>
+        <div style={{padding:14,borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:14}}>
           <div style={{fontSize:10,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Invite Link</div>
           <div style={{fontSize:11,color:T.acc,wordBreak:"break-all",lineHeight:1.6,marginBottom:10}}>{link}</div>
           <button onClick={copy} style={{width:"100%",padding:"10px 0",borderRadius:10,background:copied?T.safeD:T.accD,border:`1px solid ${copied?T.safe:T.accM}`,color:copied?T.safe:T.acc,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
@@ -119,22 +137,19 @@ function InviteLink({family,onClose}){
           </button>
         </div>
 
-        {/* Info */}
         <div style={{padding:12,borderRadius:10,background:T.vioD,border:`1px solid ${T.vio}33`,marginBottom:16,fontSize:12,color:T.vio,lineHeight:1.7}}>
-          📋 When family opens this link they will see a welcome page and can set their password. After that they login normally. <strong>Link expires in 7 days.</strong>
+          📋 Family opens this link → sets password → logs in automatically. <strong>Link expires in 7 days.</strong>
         </div>
 
-        {/* Send via WhatsApp */}
-        <button onClick={sendWhatsApp} style={{width:"100%",padding:"13px 0",borderRadius:12,background:whatsappSent?"#128C7E22":"#128C7E",border:"none",color:whatsappSent?"#25D366":"#fff",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>
-          {whatsappSent?"✅ Sent on WhatsApp":"💬 Send via WhatsApp"}
+        <button onClick={sendWA} style={{width:"100%",padding:"13px 0",borderRadius:12,background:waSent?"#128C7E22":"#128C7E",border:"none",color:waSent?"#25D366":"#fff",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>
+          {waSent?"✅ Sent on WhatsApp":"💬 Send via WhatsApp"}
         </button>
 
-        {/* Manual share options */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <button onClick={()=>{window.open(`sms:${family.phone}?body=You are invited to MedGuard: ${link}`);}} style={{padding:"10px 0",borderRadius:10,background:T.bluD,border:`1px solid ${T.blu}44`,color:T.blu,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+          <button onClick={()=>window.open(`sms:${family.phone}?body=You are invited to MedGuard: ${link}`)} style={{padding:"10px 0",borderRadius:10,background:T.bluD,border:`1px solid ${T.blu}44`,color:T.blu,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             📱 Send SMS
           </button>
-          <button onClick={()=>{window.open(`mailto:${family.email}?subject=Your MedGuard Invitation&body=Hello,\n\nYou have been invited to MedGuard.\n\nClick here to setup your account: ${link}\n\nThis link expires in 7 days.\n\nTeam MedGuard`);}} style={{padding:"10px 0",borderRadius:10,background:T.vioD,border:`1px solid ${T.vio}44`,color:T.vio,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+          <button onClick={()=>window.open(`mailto:${family.email}?subject=Your MedGuard Invitation&body=Hello ${family.name},%0D%0A%0D%0AYou have been invited to MedGuard.%0D%0A%0D%0ASetup your account here: ${link}%0D%0A%0D%0ALink expires in 7 days.%0D%0A%0D%0ATeam MedGuard`)} style={{padding:"10px 0",borderRadius:10,background:T.vioD,border:`1px solid ${T.vio}44`,color:T.vio,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             📧 Send Email
           </button>
         </div>
@@ -153,7 +168,6 @@ function CreateFamilyModal({onSave,onClose}){
   const [seniors,setSeniors]=useState([{name:"",age:"",relation:"Father"}]);
   const [error,setError]=useState("");
 
-  const addSenior=()=>setSeniors(p=>[...p,{name:"",age:"",relation:"Father"}]);
   const updateSenior=(i,key,val)=>setSeniors(p=>p.map((s,idx)=>idx===i?{...s,[key]:val}:s));
   const removeSenior=(i)=>setSeniors(p=>p.filter((_,idx)=>idx!==i));
 
@@ -168,58 +182,65 @@ function CreateFamilyModal({onSave,onClose}){
   };
 
   const save=()=>{
-    const token=generateToken();
+    const inviteToken=generateToken();
     const newFamily={
       id:Date.now(),
       name,email,phone,plan,
       status:"pending",
       joined:new Date().toLocaleDateString("en-IN",{month:"short",day:"numeric",year:"numeric"}),
       lastActive:"Never",
-      seniors:seniors.filter(s=>s.name).map((s,i)=>({id:Date.now()+i,name:s.name,age:parseInt(s.age)||0,relation:s.relation,medicines:0,adherence:0})),
+      seniors:seniors.filter(s=>s.name).map((s,i)=>({
+        id:Date.now()+i,
+        name:s.name,
+        age:parseInt(s.age)||0,
+        relation:s.relation,
+        medicines:0,
+        adherence:0,
+      })),
       totalMeds:0,
       revenue:plan==="pro"?199:plan==="basic"?99:0,
-      inviteToken:token,
+      inviteToken,
       inviteStatus:"pending",
     };
     onSave(newFamily);
   };
 
-  const planColor={pro:T.gold,basic:T.acc,trial:T.warn};
   const relations=["Father","Mother","Grandfather","Grandmother","Uncle","Aunt","Other"];
+  const planDefs=[
+    {id:"trial",label:"Free Trial",price:"Free",duration:"14 days",features:["All features","Reminders","AI scanner"],color:T.warn},
+    {id:"basic",label:"Basic",price:"₹99/month",duration:"Monthly",features:["All features","WhatsApp reminders"],color:T.acc},
+    {id:"pro",label:"Pro",price:"₹199/month",duration:"Monthly",features:["Everything","Multiple seniors","AI reports","Priority support"],color:T.gold},
+  ];
 
   return(
     <div style={{position:"fixed",inset:0,background:"#000b",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{width:"100%",maxWidth:480,background:T.sur,borderRadius:"24px 24px 0 0",padding:24,maxHeight:"90vh",overflow:"auto",border:`1px solid ${T.bd}`}}>
 
-        {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{fontSize:18,fontWeight:800,color:T.tx}}>➕ Create New Family</div>
           <button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:16,cursor:"pointer"}}>✕</button>
         </div>
 
-        {/* Progress */}
         <div style={{display:"flex",gap:6,marginBottom:20}}>
           {["Family Details","Add Seniors","Choose Plan"].map((s,i)=>(
             <div key={i} style={{flex:1,textAlign:"center"}}>
-              <div style={{height:3,borderRadius:2,background:step>i?T.acc:T.bd,marginBottom:4,transition:"background .3s"}}/>
+              <div style={{height:3,borderRadius:2,background:step>i?T.acc:T.bd,marginBottom:4}}/>
               <div style={{fontSize:9,color:step===i+1?T.acc:T.tm,fontWeight:step===i+1?700:400}}>{s}</div>
             </div>
           ))}
         </div>
 
-        {/* Step 1 — Family details */}
         {step===1&&(
           <>
             <Inp label="Family Name" value={name} onChange={setName} placeholder="e.g. Kumar Family"/>
-            <Inp label="Family Email (for login)" value={email} onChange={setEmail} placeholder="rajan@gmail.com" type="email" color={T.acc}/>
-            <Inp label="Phone Number (for WhatsApp)" value={phone} onChange={setPhone} placeholder="+91 98765 43210"/>
+            <Inp label="Email (for login)" value={email} onChange={setEmail} placeholder="rajan@gmail.com" type="email" color={T.acc}/>
+            <Inp label="Phone (for WhatsApp)" value={phone} onChange={setPhone} placeholder="+91 98765 43210"/>
           </>
         )}
 
-        {/* Step 2 — Seniors */}
         {step===2&&(
           <>
-            <div style={{fontSize:12,color:T.tm,marginBottom:14,lineHeight:1.6}}>Add the elderly members this family will be monitoring. You can add more later.</div>
+            <div style={{fontSize:12,color:T.tm,marginBottom:14,lineHeight:1.6}}>Add elderly members this family will monitor.</div>
             {seniors.map((s,i)=>(
               <div key={i} style={{padding:14,borderRadius:14,background:T.hi,border:`1px solid ${T.bd}`,marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -240,22 +261,17 @@ function CreateFamilyModal({onSave,onClose}){
                 </div>
               </div>
             ))}
-            <button onClick={addSenior} style={{width:"100%",padding:"10px 0",borderRadius:10,background:T.accD,border:`1px dashed ${T.accM}`,color:T.acc,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:4}}>
+            <button onClick={()=>setSeniors(p=>[...p,{name:"",age:"",relation:"Father"}])} style={{width:"100%",padding:"10px 0",borderRadius:10,background:T.accD,border:`1px dashed ${T.accM}`,color:T.acc,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:4}}>
               ＋ Add Another Senior
             </button>
           </>
         )}
 
-        {/* Step 3 — Plan */}
         {step===3&&(
           <>
-            <div style={{fontSize:12,color:T.tm,marginBottom:14}}>Choose a plan for this family. You can change it anytime from the admin panel.</div>
-            {[
-              {id:"trial",label:"Free Trial",price:"Free",duration:"14 days",features:["All features included","Reminders","AI scanner"],color:T.warn},
-              {id:"basic",label:"Basic Plan",price:"₹99/month",duration:"Monthly billing",features:["All features","WhatsApp reminders","1 senior"],color:T.acc},
-              {id:"pro",label:"Pro Plan",price:"₹199/month",duration:"Monthly billing",features:["Everything in Basic","Multiple seniors","Priority support","AI reports"],color:T.gold},
-            ].map(p=>(
-              <div key={p.id} onClick={()=>setPlan(p.id)} style={{padding:16,borderRadius:14,background:plan===p.id?p.color+"18":T.hi,border:`2px solid ${plan===p.id?p.color:T.bd}`,cursor:"pointer",marginBottom:10,transition:"all .2s"}}>
+            <div style={{fontSize:12,color:T.tm,marginBottom:14}}>Choose plan. You can change anytime.</div>
+            {planDefs.map(p=>(
+              <div key={p.id} onClick={()=>setPlan(p.id)} style={{padding:16,borderRadius:14,background:plan===p.id?p.color+"18":T.hi,border:`2px solid ${plan===p.id?p.color:T.bd}`,cursor:"pointer",marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:T.tx}}>{p.label}</div>
@@ -274,7 +290,6 @@ function CreateFamilyModal({onSave,onClose}){
               </div>
             ))}
 
-            {/* Summary */}
             <div style={{padding:14,borderRadius:12,background:T.accD,border:`1px solid ${T.accM}`,marginTop:4}}>
               <div style={{fontSize:12,fontWeight:700,color:T.acc,marginBottom:8}}>📋 Summary</div>
               {[
@@ -282,7 +297,7 @@ function CreateFamilyModal({onSave,onClose}){
                 ["Email",email],
                 ["Phone",phone],
                 ["Seniors",seniors.filter(s=>s.name).length+" person(s)"],
-                ["Plan",plan+" ("+( plan==="pro"?"₹199/mo":plan==="basic"?"₹99/mo":"Free" )+")"],
+                ["Plan",plan+" ("+(plan==="pro"?"₹199/mo":plan==="basic"?"₹99/mo":"Free")+")"],
               ].map(([k,v])=>(
                 <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${T.bd}22`}}>
                   <span style={{color:T.tm}}>{k}</span>
@@ -299,7 +314,6 @@ function CreateFamilyModal({onSave,onClose}){
           </div>
         )}
 
-        {/* Navigation */}
         <div style={{display:"flex",gap:10,marginTop:16}}>
           {step>1&&(
             <button onClick={()=>setStep(s=>s-1)} style={{flex:1,padding:"12px 0",borderRadius:12,background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
@@ -356,8 +370,14 @@ function AdminLogin({onLogin}){
           <div style={{marginBottom:20}}>
             <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Password</div>
             <div style={{position:"relative"}}>
-              <input value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} placeholder="Admin password" type={showPass?"text":"password"}
-                style={{width:"100%",padding:"11px 44px 11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+              <input
+                value={pass}
+                onChange={e=>setPass(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&handle()}
+                placeholder="Admin password"
+                type={showPass?"text":"password"}
+                style={{width:"100%",padding:"11px 44px 11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}
+              />
               <button onClick={()=>setShowPass(!showPass)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.tm,cursor:"pointer",fontSize:16}}>
                 {showPass?"🙈":"👁️"}
               </button>
@@ -449,13 +469,16 @@ function ClientsTab({data,onView,onCreateFamily,onInvite}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {/* Create new family button */}
       <button onClick={onCreateFamily} style={{width:"100%",padding:"14px 0",borderRadius:14,background:`linear-gradient(135deg,${T.accD},${T.bluD})`,border:`2px solid ${T.acc}55`,color:T.acc,fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         ➕ Create New Family Account
       </button>
 
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search families..."
-        style={{width:"100%",padding:"11px 14px",borderRadius:12,background:T.sur,border:`1px solid ${T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+      <input
+        value={search}
+        onChange={e=>setSearch(e.target.value)}
+        placeholder="🔍 Search families..."
+        style={{width:"100%",padding:"11px 14px",borderRadius:12,background:T.sur,border:`1px solid ${T.bd}`,color:T.tx,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}
+      />
 
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {["all","active","trial","pending","inactive","pro","basic"].map(f=>(
@@ -497,17 +520,20 @@ function ClientsTab({data,onView,onCreateFamily,onInvite}){
                   </div>
                 ))}
               </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.tm}}>
+                <span>Joined {f.joined}</span>
+                <span>Active {f.lastActive}</span>
+              </div>
             </div>
 
-            {/* Invite actions */}
             {f.inviteToken&&(
-              <div style={{borderTop:`1px solid ${T.bd}`,paddingTop:10,display:"flex",gap:8}}>
+              <div style={{borderTop:`1px solid ${T.bd}`,paddingTop:10,marginTop:10,display:"flex",gap:8}}>
                 <button onClick={()=>onInvite(f)} style={{flex:1,padding:"8px 0",borderRadius:10,background:T.accD,border:`1px solid ${T.accM}`,color:T.acc,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                   📨 {f.inviteStatus==="pending"?"Resend Invite":"View Invite"}
                 </button>
                 {f.inviteStatus==="pending"&&(
                   <div style={{padding:"8px 12px",borderRadius:10,background:T.vioD,border:`1px solid ${T.vio}33`,fontSize:11,color:T.vio,display:"flex",alignItems:"center"}}>
-                    ⏳ Waiting for family to accept
+                    ⏳ Waiting
                   </div>
                 )}
               </div>
@@ -526,8 +552,8 @@ function ClientDetail({client,onBack,onUpdate,onInvite}){
   const [showMsg,setShowMsg]=useState(false);
   const [msg,setMsg]=useState("");
   const [saved,setSaved]=useState(false);
-  const planColor={pro:T.gold,basic:T.acc,trial:T.warn};
   const statusColor={active:T.safe,trial:T.warn,inactive:T.dan,pending:T.vio};
+  const planRevColor={pro:T.gold,basic:T.acc,trial:T.warn};
 
   const save=()=>{
     onUpdate({...client,plan,status});
@@ -551,15 +577,14 @@ function ClientDetail({client,onBack,onUpdate,onInvite}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <Chip color={statusColor[status]||T.tm}>{status}</Chip>
-            <Chip color={planColor[plan]||T.tm}>{plan}</Chip>
+            <Chip color={planRevColor[plan]||T.tm}>{plan}</Chip>
           </div>
         </div>
 
-        {/* Invite status */}
         {client.inviteToken&&(
           <div style={{padding:"10px 12px",borderRadius:10,background:client.inviteStatus==="pending"?T.vioD:T.safeD,border:`1px solid ${client.inviteStatus==="pending"?T.vio:T.safe}33`,marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:client.inviteStatus==="pending"?T.vio:T.safe,marginBottom:6}}>
-              {client.inviteStatus==="pending"?"⏳ Invite Pending":"✅ Invite Accepted"}
+              {client.inviteStatus==="pending"?"⏳ Invite Pending — family has not joined yet":"✅ Invite Accepted — family is active"}
             </div>
             {client.inviteStatus==="pending"&&(
               <button onClick={()=>onInvite(client)} style={{width:"100%",padding:"8px 0",borderRadius:8,background:T.vioD,border:`1px solid ${T.vio}44`,color:T.vio,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
@@ -573,7 +598,7 @@ function ClientDetail({client,onBack,onUpdate,onInvite}){
           <div style={{fontSize:11,color:T.tm,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Change Plan</div>
           <div style={{display:"flex",gap:8}}>
             {["trial","basic","pro"].map(p=>(
-              <button key={p} onClick={()=>setPlan(p)} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${plan===p?planColor[p]:T.bd}`,background:plan===p?planColor[p]+"22":T.hi,color:plan===p?planColor[p]:T.tm,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>
+              <button key={p} onClick={()=>setPlan(p)} style={{flex:1,padding:"8px 0",borderRadius:10,border:`2px solid ${plan===p?planRevColor[p]:T.bd}`,background:plan===p?planRevColor[p]+"22":T.hi,color:plan===p?planRevColor[p]:T.tm,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>
                 {p}
                 <div style={{fontSize:10,fontWeight:400,marginTop:2}}>{p==="trial"?"Free":p==="basic"?"₹99/mo":"₹199/mo"}</div>
               </button>
@@ -623,8 +648,13 @@ function ClientDetail({client,onBack,onUpdate,onInvite}){
           </button>
         ):(
           <>
-            <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Type your message..." rows={4}
-              style={{width:"100%",padding:"11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${T.bd}`,color:T.tx,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",resize:"none",marginBottom:10}}/>
+            <textarea
+              value={msg}
+              onChange={e=>setMsg(e.target.value)}
+              placeholder="Type your message..."
+              rows={4}
+              style={{width:"100%",padding:"11px 14px",borderRadius:10,background:T.hi,border:`1px solid ${T.bd}`,color:T.tx,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit",resize:"none",marginBottom:10}}
+            />
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowMsg(false)} style={{flex:1,padding:"10px 0",borderRadius:10,background:T.hi,border:`1px solid ${T.bd}`,color:T.tm,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
               <button onClick={()=>{setShowMsg(false);setMsg("");window.open(`https://wa.me/${client.phone.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`);}} style={{flex:2,padding:"10px 0",borderRadius:10,background:"#128C7E",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
@@ -652,6 +682,7 @@ function ClientDetail({client,onBack,onUpdate,onInvite}){
 function AlertsTab({data}){
   const [resolved,setResolved]=useState([]);
   const active=data.alerts.filter(a=>!resolved.includes(a.id));
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -722,8 +753,12 @@ function SettingsTab({onLogout}){
           <div key={p.key} style={{marginBottom:14}}>
             <div style={{fontSize:11,color:p.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>{p.label}</div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <input value={pricing[p.key]} onChange={e=>setPricing(prev=>({...prev,[p.key]:e.target.value}))} type="number"
-                style={{flex:1,padding:"10px 12px",borderRadius:10,background:T.hi,border:`1px solid ${p.color}44`,color:T.tx,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+              <input
+                value={pricing[p.key]}
+                onChange={e=>setPricing(prev=>({...prev,[p.key]:e.target.value}))}
+                type="number"
+                style={{flex:1,padding:"10px 12px",borderRadius:10,background:T.hi,border:`1px solid ${p.color}44`,color:T.tx,fontSize:14,outline:"none",fontFamily:"inherit"}}
+              />
               <span style={{fontSize:12,color:T.tm,flexShrink:0}}>{p.suffix}</span>
             </div>
           </div>
@@ -736,7 +771,7 @@ function SettingsTab({onLogout}){
       <Card>
         <div style={{fontSize:13,fontWeight:800,color:T.tx,marginBottom:4}}>⚙️ Settings</div>
         <Toggle label="Maintenance Mode" sub="Temporarily block all users" on={toggles.maintenance} onToggle={()=>toggle("maintenance")}/>
-        <Toggle label="Public Signups" sub="Allow anyone to register (OFF = invite only)" on={toggles.registrations} onToggle={()=>toggle("registrations")}/>
+        <Toggle label="Public Signups" sub="OFF = invite only mode (recommended)" on={toggles.registrations} onToggle={()=>toggle("registrations")}/>
         <Toggle label="WhatsApp Reminders" sub="Send reminders to all seniors" on={toggles.whatsapp} onToggle={()=>toggle("whatsapp")}/>
         <Toggle label="Email Reports" sub="Weekly reports to families" on={toggles.email} onToggle={()=>toggle("email")}/>
       </Card>
@@ -754,12 +789,11 @@ function SettingsTab({onLogout}){
   );
 }
 
-// ── INVITE ACCEPTED PAGE ───────────────────────────────────────────────────────
+// ── INVITE ACCEPT PAGE ─────────────────────────────────────────────────────────
 function InviteAcceptPage(){
   const params=new URLSearchParams(window.location.search);
   const name=decodeURIComponent(params.get("name")||"");
   const email=decodeURIComponent(params.get("email")||"");
-  const token=params.get("token");
   const [pass,setPass]=useState("");
   const [confirm,setConfirm]=useState("");
   const [done,setDone]=useState(false);
@@ -794,13 +828,13 @@ function InviteAcceptPage(){
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:48,marginBottom:12}}>💊</div>
           <div style={{fontSize:22,fontWeight:900,color:"#E2E8F0"}}>You're Invited!</div>
-          <div style={{fontSize:13,color:"#718096",marginTop:6}}>Set up your MedGuard account</div>
+          <div style={{fontSize:13,color:"#718096",marginTop:6}}>Set up your MedGuard family account</div>
         </div>
 
         <div style={{background:"#161B22",border:"1px solid #2D3748",borderRadius:16,padding:24}}>
           <div style={{padding:"12px 14px",borderRadius:10,background:"#00D4AA18",border:"1px solid #00D4AA33",marginBottom:20}}>
             <div style={{fontSize:12,color:"#00D4AA",fontWeight:700,marginBottom:4}}>Welcome to MedGuard</div>
-            <div style={{fontSize:13,color:"#E2E8F0"}}>{name}</div>
+            <div style={{fontSize:13,color:"#E2E8F0",fontWeight:600}}>{name}</div>
             <div style={{fontSize:11,color:"#718096"}}>{email}</div>
           </div>
 
@@ -819,7 +853,7 @@ function InviteAcceptPage(){
           {error&&<div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:"#FC818118",border:"1px solid #FC818144",fontSize:13,color:"#FC8181"}}>⚠️ {error}</div>}
 
           <button onClick={setup} style={{width:"100%",padding:"13px 0",borderRadius:12,background:"#00D4AA",border:"none",color:"#0D1117",fontSize:15,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-            Create Account →
+            Create My Account →
           </button>
         </div>
 
@@ -831,7 +865,7 @@ function InviteAcceptPage(){
   );
 }
 
-// ── MAIN ADMIN ─────────────────────────────────────────────────────────────────
+// ── MAIN ───────────────────────────────────────────────────────────────────────
 export default function Admin(){
   const [loggedIn,setLoggedIn]=useState(false);
   const [tab,setTab]=useState("overview");
@@ -840,7 +874,6 @@ export default function Admin(){
   const [inviteFamily,setInviteFamily]=useState(null);
   const [data,setData]=useState({families:INIT_FAMILIES,alerts:INIT_ALERTS});
 
-  // Check if this is invite page
   if(window.location.pathname==="/invite"){
     return <InviteAcceptPage/>;
   }
